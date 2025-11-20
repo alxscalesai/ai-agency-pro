@@ -1,0 +1,15 @@
+# Never commit secrets
+.env
+.env.*
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Local data / outputs
+services/api/out/
+data.db
+
+# Editor settings (optional)
+.vscode/
+.idea/

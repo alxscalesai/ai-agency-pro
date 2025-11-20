@@ -1,0 +1,33 @@
+services:
+  api:
+    build: ./services/api
+    env_file: .env
+    depends_on:
+      - redis
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - ./services/api:/app
+
+  worker:
+    build: ./services/worker
+    env_file: .env
+    depends_on:
+      - redis
+    volumes:
+      - ./services/worker:/app
+
+  scheduler:
+    build: ./services/worker
+    env_file: .env
+    depends_on:
+      - redis
+    command: ["python","-m","celery","-A","tasks.app","beat","-s","/tmp/celerybeat-schedule"]
+    volumes:
+      - ./services/worker:/app
+
+  redis:
+    image: redis:7
+    command: ["redis-server","--appendonly","yes"]
+    ports:
+      - "6379:6379"

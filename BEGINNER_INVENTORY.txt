@@ -1,0 +1,6 @@
+AI_Generator_Script_Pack/EXAMPLE_CALL.py
+AI_Generator_Script_Pack/MASTER_PROMPT.md
+AI_Generator_Script_Pack/OUTPUT_MANIFEST_SCHEMA.json
+AI_Generator_Script_Pack/PHASES.md
+AI_Generator_Script_Pack/TROUBLESHOOTING_TIPS.md
+AI_Generator_Script_Pack/VARIABLES.yaml
