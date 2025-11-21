@@ -279,9 +279,10 @@ async def tally_intake(request: Request):
             result["emailed"] = True
         else:
             result["emailed"] = False
-    except Exception as e:
-        result["emailed"] = False
-        result["email_error"] = f"{type(e).__name__}: {e}"
+        except Exception as e:
+    result["emailed"] = False
+    result["email_error"] = f"{type(e).__name__}: {e}"
+    print("EMAIL ERROR in tally_intake:", result["email_error"])
 
     # log CSV
     log_path = client_dir / "submissions.csv"
