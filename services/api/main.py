@@ -152,8 +152,11 @@ async def tally_intake(request: Request):
     data = payload.get("data", {})
     fields = data.get("fields", [])
 
-    if not fields:
-        raise HTTPException(status_code=400, detail="No fields found in Tally payload")
+    print("Tally field labels:", [f.get("label") for f in fields])
+
+# if not fields:
+#     raise HTTPException(status_code=400, detail="No fields found in Tally payload")
+
 
     # === map your exact labels ===
     brand_name     = (_find_field(fields, "Brand Name", "") or "").strip()
@@ -179,11 +182,11 @@ async def tally_intake(request: Request):
     product_images = _find_field(fields, "Upload Product Images", []) or []
     extra_images   = _find_field(fields, "Additional Images (optional)", []) or []
 
-    if not brand_name or not main_product or not client_email:
-        raise HTTPException(
-            status_code=400,
-            detail="Missing required fields: Brand Name, Main Product / Service, or Business Email."
-        )
+# if not brand_name or not main_product or not client_email:
+#     raise HTTPException(
+#         status_code=400,
+#         detail="Missing required fields: Brand Name, Main Product / Service, or Business Email."
+#     )
 
     audience_desc = ideal_customer or f"{audience_age} audience"
     angle = main_benefit or "Scale sales with better ads and creative"
