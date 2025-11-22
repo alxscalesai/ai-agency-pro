@@ -31,7 +31,7 @@ def send_campaign(to_email: str, subject: str, content: str, from_name: str = "A
 
     try:
         resp = requests.post(url, headers=headers, json=data, timeout=10)
-        if resp.status_code >= 200 and resp.status_code < 300:
+        if 200 <= resp.status_code < 300:
             print("RESEND: email sent successfully to", to_email)
         else:
             print("RESEND ERROR:", resp.status_code, resp.text)
