@@ -1,20 +1,39 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.utils import formataddr
 import os
+import requests
+
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", os.getenv("SMTP_USERNAME"))
 
 def send_campaign(to_email: str, subject: str, content: str, from_name: str = "ALX Scales"):
-    print("SMTP: preparing to send to", to_email)
-    msg = MIMEText(content, _charset="utf-8")
-    msg["Subject"] = subject
-    msg["From"] = formataddr((from_name, os.getenv("SMTP_USERNAME")))
-    msg["To"] = to_email
+    """
+    Send an email using Resend's HTTP API instead of SMTP.
+    """
+    if not RESEND_API_KEY:
+        print("RESEND: RESEND_API_KEY is not set, skipping send.")
+        return
 
-    with smtplib.SMTP(os.getenv("SMTP_SERVER"), int(os.getenv("SMTP_PORT"))) as server:
-        print("SMTP: connecting to server", os.getenv("SMTP_SERVER"), os.getenv("SMTP_PORT"))
-        server.starttls()
-        print("SMTP: starting TLS")
-        server.login(os.getenv("SMTP_USERNAME"), os.getenv("SMTP_PASSWORD"))
-        print("SMTP: logged in as", os.getenv("SMTP_USERNAME"))
-        server.send_message(msg)
-        print("SMTP: message sent to", to_email)
+    from_email = RESEND_FROM_EMAIL or "no-reply@example.com"
+    frm = f"{from_name} <{from_email}>"
+
+    print("RESEND: preparing to send to", to_email)
+
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    data = {
+        "from": frm,
+        "to": [to_email],
+        "subject": subject,
+        "text": content,
+    }
+
+    try:
+        resp = requests.post(url, headers=headers, json=data, timeout=10)
+        if resp.status_code >= 200 and resp.status_code < 300:
+            print("RESEND: email sent successfully to", to_email)
+        else:
+            print("RESEND ERROR:", resp.status_code, resp.text)
+    except Exception as e:
+        print("RESEND EXCEPTION:", type(e).__name__, e)
