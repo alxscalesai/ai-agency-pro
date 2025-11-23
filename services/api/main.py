@@ -117,23 +117,115 @@ def mini_campaign(payload: MiniCampaign):
     budget = payload.budget or ""
     email_for_delivery = payload.email or ""
 
-    ad_prompt = (
-        f"Brand: {brand}\n"
-        f"Product: {product}\n"
-        f"Audience: {audience}\n"
-        f"Website: {website}\n"
-        f"Budget: {budget}\n"
-        "Write 3 high-converting ad variants (primary text + headline + call-to-action) "
-        "for a paid social campaign. Return them as a numbered list."
-    )
-    email_prompt = (
-        f"Brand: {brand}\n"
-        f"Product: {product}\n"
-        f"Audience: {audience}\n"
-        f"Website: {website}\n"
-        "Write a marketing email to drive sales of this product. "
-        "Include a compelling subject line (prefix with 'Subject:')."
-    )
+ad_prompt = f"""
+    You are a senior creative strategist for paid social ads (Meta, TikTok, IG).
+
+    Generate a FULL CREATIVE PACKAGE for this client:
+
+    Brand: {brand_name}
+    Product/Service: {main_product}
+    Ideal Customer: {audience_desc}
+    Main Benefit: {angle}
+    Tone/Style: {ad_tone}
+    Budget: {monthly_budget}
+    Competitors: {top_competitors}
+    Notes: {additional_notes}
+
+    OUTPUT:
+
+    1) **5 High-Converting Ad Concepts**
+    Each concept MUST include:
+    - Hook (short + scroll-stopping)
+    - Primary Text (2–4 sentences, benefit-first)
+    - Headline (6–9 words)
+    - CTA (action-driven)
+    - Suggested Visual (clear photo/video idea)
+    - Angle (emotional or logical reason why they buy)
+
+    2) **Meta-Ready Format**
+    For each concept output:
+    Primary Text:
+    Headline:
+    CTA:
+    Suggested Image:
+    Angle:
+
+    3) **Creative Strategy Notes**
+    Explain:
+    - Why these concepts work
+    - What psychological triggers they use
+    - Whether they are ideal for cold, warm, or broad audiences
+
+    4) **Audience Targeting**
+    Provide:
+    - 3 detailed interest audiences
+    - 1 broad audience plan
+    - 1 simple retargeting strategy
+
+    5) **Video Script**
+    Provide ONE 15–30 sec TikTok/IG Reel script:
+    - Hook
+    - Scene breakdown
+    - Voiceover ideas
+    - On-screen text
+
+    RETURN THE OUTPUT IN A CLEAN, ORGANIZED STRUCTURE.
+    DO NOT include explanations outside the structure.
+    """
+    email_prompt = f"""
+    Write a weekly CREATIVE PACK email for the client.
+
+    Brand: {brand_name}
+    Product: {main_product}
+    Website: {website_url or product_url}
+    Ideal Customer: {audience_desc}
+    Tone: {ad_tone or 'high-converting but natural'}
+    Client Name: {client_name or 'there'}
+
+    FORMAT:
+
+    1) **Subject Line**
+    Use EXACT format:
+    "Your Weekly Creative Pack — {brand_name}"
+
+    2) **Greeting**
+    Use client name if provided.
+
+    3) **Summary Overview**
+    Clearly explain what this week's pack includes:
+    - 5 ad concepts
+    - Targeting strategies
+    - Creative notes
+    - Recommended platforms
+
+    4) **Ad Concepts Recap**
+    Summarize each ad concept:
+    - Angle / name
+    - Best platform (Meta/TikTok/IG)
+    - Visual suggestion
+    - What customer segment it targets
+
+    5) **Targeting Recommendations**
+    Provide:
+    - 2 interest audiences
+    - 1 broad audience strategy
+    - 1 retargeting recommendation
+
+    6) **Instructions for Use**
+    Include this EXACT block:
+
+    “How to use your Creative Pack:
+    1. Choose 1–2 concepts and create visuals in Canva or upload directly in Meta Ads Manager.
+    2. For Meta, use 1080x1350 or 1080x1920 images.
+    3. Paste the Primary Text, Headline, and CTA exactly as provided.
+    4. For TikTok/Reels, follow the video script/visual suggestions.
+    5. Launch ads under 'Sales' objective using the targeting recommendations above.
+    6. If you want full ad setup or optimization done for you, reply to this email — we’ll handle everything.”
+
+    7) **Footer**
+    Add a clean signature for ALX Scales.
+    """
+
 
     ads = generate_ad_copy(ad_prompt)
     email_text = generate_email(email_prompt)
@@ -238,29 +330,115 @@ async def tally_intake(request: Request):
     audience_desc = ideal_customer or f"{audience_age} audience"
     angle = main_benefit or "Scale sales with better ads and creative"
 
-    ad_prompt = (
-        f"Brand: {brand_name}\n"
-        f"Product/Service: {main_product}\n"
-        f"Ideal customer: {audience_desc}\n"
-        f"Main benefit: {angle}\n"
-        f"Tone/style: {ad_tone}\n"
-        f"Budget: {monthly_budget}\n"
-        f"Notes: {additional_notes}\n"
-        f"Social links: {social_links}\n"
-        f"Top competitors: {top_competitors}\n"
-        "Write 5 short-form performance ad concepts for paid social that fit this brief.\n"
-        "Each concept should include a hook, a brief description, and a suggested CTA.\n"
-    )
+    ad_prompt = f"""
+    You are a senior creative strategist for paid social ads (Meta, TikTok, IG).
 
-    email_prompt = (
-        f"Write a marketing email for {brand_name} promoting {main_product}.\n"
-        f"Website: {website_url or product_url}\n"
-        f"Ideal customer: {audience_desc}\n"
-        f"Main benefit: {angle}\n"
-        f"Use the recipient name '{client_name or 'there'}'.\n"
-        f"Include a clear CTA to visit {website_url or product_url}.\n"
-        f"Tone: {ad_tone or 'high-converting but natural'}.\n"
-    )
+    Generate a FULL CREATIVE PACKAGE for this client:
+
+    Brand: {brand_name}
+    Product/Service: {main_product}
+    Ideal Customer: {audience_desc}
+    Main Benefit: {angle}
+    Tone/Style: {ad_tone}
+    Budget: {monthly_budget}
+    Competitors: {top_competitors}
+    Notes: {additional_notes}
+
+    OUTPUT:
+
+    1) **5 High-Converting Ad Concepts**
+    Each concept MUST include:
+    - Hook (short + scroll-stopping)
+    - Primary Text (2–4 sentences, benefit-first)
+    - Headline (6–9 words)
+    - CTA (action-driven)
+    - Suggested Visual (clear photo/video idea)
+    - Angle (emotional or logical reason why they buy)
+
+    2) **Meta-Ready Format**
+    For each concept output:
+    Primary Text:
+    Headline:
+    CTA:
+    Suggested Image:
+    Angle:
+
+    3) **Creative Strategy Notes**
+    Explain:
+    - Why these concepts work
+    - What psychological triggers they use
+    - Whether they are ideal for cold, warm, or broad audiences
+
+    4) **Audience Targeting**
+    Provide:
+    - 3 detailed interest audiences
+    - 1 broad audience plan
+    - 1 simple retargeting strategy
+
+    5) **Video Script**
+    Provide ONE 15–30 sec TikTok/IG Reel script:
+    - Hook
+    - Scene breakdown
+    - Voiceover ideas
+    - On-screen text
+
+    RETURN THE OUTPUT IN A CLEAN, ORGANIZED STRUCTURE.
+    DO NOT include explanations outside the structure.
+    """
+
+    email_prompt = f"""
+    Write a weekly CREATIVE PACK email for the client.
+
+    Brand: {brand_name}
+    Product: {main_product}
+    Website: {website_url or product_url}
+    Ideal Customer: {audience_desc}
+    Tone: {ad_tone or 'high-converting but natural'}
+    Client Name: {client_name or 'there'}
+
+    FORMAT:
+
+    1) **Subject Line**
+    Use EXACT format:
+    "Your Weekly Creative Pack — {brand_name}"
+
+    2) **Greeting**
+    Use client name if provided.
+
+    3) **Summary Overview**
+    Clearly explain what this week's pack includes:
+    - 5 ad concepts
+    - Targeting strategies
+    - Creative notes
+    - Recommended platforms
+
+    4) **Ad Concepts Recap**
+    Summarize each ad concept:
+    - Angle / name
+    - Best platform (Meta/TikTok/IG)
+    - Visual suggestion
+    - What customer segment it targets
+
+    5) **Targeting Recommendations**
+    Provide:
+    - 2 interest audiences
+    - 1 broad audience strategy
+    - 1 retargeting recommendation
+
+    6) **Instructions for Use**
+    Include this EXACT block:
+
+    “How to use your Creative Pack:
+    1. Choose 1–2 concepts and create visuals in Canva or upload directly in Meta Ads Manager.
+    2. For Meta, use 1080x1350 or 1080x1920 images.
+    3. Paste the Primary Text, Headline, and CTA exactly as provided.
+    4. For TikTok/Reels, follow the video script/visual suggestions.
+    5. Launch ads under 'Sales' objective using the targeting recommendations above.
+    6. If you want full ad setup or optimization done for you, reply to this email — we’ll handle everything.”
+
+    7) **Footer**
+    Add a clean signature for ALX Scales.
+    """
 
     # call your existing AI
     try:
