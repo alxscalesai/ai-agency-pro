@@ -259,111 +259,128 @@ async def tally_intake(request: Request):
     ad_prompt = f"""
     You are a senior creative strategist for paid social ads (Meta, TikTok, IG).
 
-    Generate a FULL CREATIVE PACKAGE for this client:
+    Your job is to create POST-READY ad creatives for this brand. 
+    No concepts, no brainstorming, no bullet points. 
+    Only finished assets that the client can upload today.
 
     Brand: {brand_name}
     Product/Service: {main_product}
     Ideal Customer: {audience_desc}
     Main Benefit: {angle}
-    Tone/Style: {ad_tone}
-    Budget: {monthly_budget}
-    Competitors: {top_competitors}
+    Tone/Style: Gen-Z professional, friendly, slightly connective
     Notes: {additional_notes}
 
-    OUTPUT:
+    DELIVERABLES (PLAIN TEXT ONLY):
 
-    1) **5 High-Converting Ad Concepts**
-    Each concept MUST include:
-    - Hook (short + scroll-stopping)
-    - Primary Text (2–4 sentences, benefit-first)
-    - Headline (6–9 words)
-    - CTA (action-driven)
-    - Suggested Visual (clear photo/video idea)
-    - Angle (emotional or logical reason why they buy)
+    1) FEED / STORY ADS (READY TO POST)
+    Create 3 ads. For EACH ad, use this format:
 
-    2) **Meta-Ready Format**
-    For each concept output:
-    Primary Text:
-    Headline:
-    CTA:
-    Suggested Image:
-    Angle:
+    Ad #1:
+    Platform: [Meta / IG / TikTok]
+    Placement: [Feed / Story / Reels]
+    Primary Text: [2–4 sentence ad copy written to convert]
+    Headline: [punchy, 6–9 words]
+    CTA: [short call-to-action phrase]
+    Image Description: [detailed visual description for Canva or AI image generation]
+    Aspect Ratio: [1080x1350 or 1080x1920]
 
-    3) **Creative Strategy Notes**
-    Explain:
-    - Why these concepts work
-    - What psychological triggers they use
-    - Whether they are ideal for cold, warm, or broad audiences
+    Repeat the same structure for Ad #2 and Ad #3.
 
-    4) **Audience Targeting**
+    2) IMAGE PROMPTS
+    Create 3 short prompts for generating lifestyle product photos using AI.
+    Format them as:
+    Image Prompt 1: ...
+    Image Prompt 2: ...
+    Image Prompt 3: ...
+
+    3) VIDEO SCRIPT (UGC, 15–25 SECONDS)
+    Provide ONE short-form UGC script using this structure:
+
+    Video Script:
+    Hook:
+    Scene 1:
+    Scene 2:
+    Scene 3:
+    On-Screen Text:
+    Voiceover Script:
+    CTA Line:
+
+    4) TARGETING PACK (FOR META ADS)
     Provide:
-    - 3 detailed interest audiences
-    - 1 broad audience plan
-    - 1 simple retargeting strategy
+    Location:
+    Age:
+    Interests:
+    Behavior:
+    Why This Works:
 
-    5) **Video Script**
-    Provide ONE 15–30 sec TikTok/IG Reel script:
-    - Hook
-    - Scene breakdown
-    - Voiceover ideas
-    - On-screen text
-
-    RETURN THE OUTPUT IN A CLEAN, ORGANIZED STRUCTURE.
-    DO NOT include explanations outside the structure.
+    RULES:
+    - Do NOT use markdown (#, **, -, *, etc.)
+    - Do NOT explain the process
+    - Do NOT generate “concepts”
+    - Only POST-READY creative formatted exactly as requested
     """
 
+
     email_prompt = f"""
-    Write a weekly CREATIVE PACK email for the client.
+    You are writing a WEEKLY CREATIVE PACK email from ALX Scales to the client.
 
     Brand: {brand_name}
     Product: {main_product}
     Website: {website_url or product_url}
     Ideal Customer: {audience_desc}
-    Tone: {ad_tone or 'high-converting but natural'}
+    Tone: Gen-Z professional, friendly, helpful, slightly connective
     Client Name: {client_name or 'there'}
 
-    FORMAT:
+    STRUCTURE (PLAIN TEXT ONLY):
 
-    1) **Subject Line**
-    Use EXACT format:
+    1) Subject Line:
     "Your Weekly Creative Pack — {brand_name}"
 
-    2) **Greeting**
-    Use client name if provided.
+    2) Greeting:
+    Short, friendly, with their name if available.
 
-    3) **Summary Overview**
-    Clearly explain what this week's pack includes:
-    - 5 ad concepts
-    - Targeting strategies
-    - Creative notes
-    - Recommended platforms
+    3) Intro:
+    Example tone:
+    "Delivered! Here’s your creative pack for the week — everything is ready for you to launch today."
 
-    4) **Ad Concepts Recap**
-    Summarize each ad concept:
-    - Angle / name
-    - Best platform (Meta/TikTok/IG)
-    - Visual suggestion
-    - What customer segment it targets
+    4) What’s Inside This Pack:
+    - 3 ready-to-post ad variations
+    - 1 short-form video script
+    - 3 image prompts
+    - Targeting suggestions
 
-    5) **Targeting Recommendations**
-    Provide:
-    - 2 interest audiences
-    - 1 broad audience strategy
-    - 1 retargeting recommendation
+    5) Ad Summary:
+    Summarize each ad (angle + best platform + short explanation of why it fits their audience).
 
-    6) **Instructions for Use**
-    Include this EXACT block:
+    6) Video Script Summary:
+    Explain the vibe of the script and the goal of the hook.
 
-    “How to use your Creative Pack:
-    1. Choose 1–2 concepts and create visuals in Canva or upload directly in Meta Ads Manager.
-    2. For Meta, use 1080x1350 or 1080x1920 images.
-    3. Paste the Primary Text, Headline, and CTA exactly as provided.
-    4. For TikTok/Reels, follow the video script/visual suggestions.
-    5. Launch ads under 'Sales' objective using the targeting recommendations above.
-    6. If you want full ad setup or optimization done for you, reply to this email — we’ll handle everything.”
+    7) Image Prompt Summary:
+    Explain how to use the prompts to build or AI-generate visuals.
 
-    7) **Footer**
-    Add a clean signature for ALX Scales.
+    8) Targeting Summary:
+    Summarize:
+    Location
+    Age
+    Interests
+    Why this is a good starting point
+
+    9) How To Use This Pack:
+    (Moderate detail instructions)
+    1. Open Canva (or your creative tool) and create visuals using the image descriptions.
+    2. Use 1080x1350 or 1080x1920 formats for ads.
+    3. Paste the Primary Text, Headline, and CTA into your ad platform.
+    4. Record the UGC video script using the scenes provided.
+    5. Launch your ads using the targeting block.
+    6. If you need help, reply to this email.
+
+    10) Closing:
+    Encouraging, helpful, branded sign-off.
+
+    RULES:
+    - No markdown formatting
+    - No bullet characters
+    - Keep everything readable and human
     """
 
     # call your existing AI
