@@ -256,11 +256,11 @@ async def tally_intake(request: Request):
     audience_desc = ideal_customer or f"{audience_age} audience"
     angle = main_benefit or "Scale sales with better ads and creative"
 
-    ad_prompt = f"""
-    You are a senior creative strategist for paid social ads (Meta, TikTok, IG).
+       ad_prompt = f"""
+    You are a senior creative strategist for paid social ads (Meta, TikTok, IG, TikTok Shop).
 
-    Your job is to create POST-READY ad creatives for this brand. 
-    No concepts, no brainstorming, no bullet points. 
+    Your job is to create POST-READY ad creatives for this brand.
+    No concepts, no brainstorming, no explanations.
     Only finished assets that the client can upload today.
 
     Brand: {brand_name}
@@ -272,56 +272,77 @@ async def tally_intake(request: Request):
 
     DELIVERABLES (PLAIN TEXT ONLY):
 
-    1) FEED / STORY ADS (READY TO POST)
-    Create 3 ads. For EACH ad, use this format:
+    1) READY-TO-POST ADS
+    Create 3 separate ads. For EACH ad, use this exact format, with blank lines between ads:
 
-    Ad #1:
+    Ad 1 — [short nickname for the angle]:
     Platform: [Meta / IG / TikTok]
     Placement: [Feed / Story / Reels]
-    Primary Text: [2–4 sentence ad copy written to convert]
+    Primary Text: [2–4 sentence ad copy written to convert, not instructions]
     Headline: [punchy, 6–9 words]
     CTA: [short call-to-action phrase]
-    Image Description: [detailed visual description for Canva or AI image generation]
+    Image Description: [detailed description for a lifestyle product image a designer or AI could make]
     Aspect Ratio: [1080x1350 or 1080x1920]
 
-    Repeat the same structure for Ad #2 and Ad #3.
+    Ad 2 — [angle nickname]:
+    Platform:
+    Placement:
+    Primary Text:
+    Headline:
+    CTA:
+    Image Description:
+    Aspect Ratio:
+
+    Ad 3 — [angle nickname]:
+    Platform:
+    Placement:
+    Primary Text:
+    Headline:
+    CTA:
+    Image Description:
+    Aspect Ratio:
 
     2) IMAGE PROMPTS
-    Create 3 short prompts for generating lifestyle product photos using AI.
-    Format them as:
+    Write exactly 3 short AI image prompts (1–2 sentences each) for lifestyle product photos.
+    Format them exactly like this:
     Image Prompt 1: ...
     Image Prompt 2: ...
     Image Prompt 3: ...
 
     3) VIDEO SCRIPT (UGC, 15–25 SECONDS)
-    Provide ONE short-form UGC script using this structure:
+    Write ONE complete UGC-style script a creator could literally read on camera.
+    Do NOT describe what they "should" say — write the actual spoken lines.
+    Use this format:
 
     Video Script:
-    Hook:
-    Scene 1:
-    Scene 2:
-    Scene 3:
-    On-Screen Text:
-    Voiceover Script:
-    CTA Line:
+    Hook: [actual line spoken in the first 2–3 seconds]
+    Scene 1: [what’s on screen] / [what is said]
+    Scene 2: [on screen] / [what is said]
+    Scene 3: [on screen] / [what is said]
+    On-Screen Text: [short text overlays]
+    Voiceover Script: [full VO lines if different from on-camera]
+    CTA Line: [final line that pushes them to click or buy]
 
     4) TARGETING PACK (FOR META ADS)
-    Provide:
-    Location:
-    Age:
-    Interests:
-    Behavior:
-    Why This Works:
+    Provide a simple targeting pack in this format:
+
+    Targeting:
+    Location: [country or region]
+    Age: [age range]
+    Interests: [3–6 interest ideas]
+    Behavior: [e.g. Engaged Shoppers]
+    Why This Works: [1–2 sentences explaining why this targeting fits the brand and audience]
 
     RULES:
-    - Do NOT use markdown (#, **, -, *, etc.)
-    - Do NOT explain the process
-    - Do NOT generate “concepts”
-    - Only POST-READY creative formatted exactly as requested
+    - Do NOT use markdown (#, **, -, *, etc.).
+    - Do NOT list concepts or ideas, only finished outputs.
+    - Do NOT explain what you are doing.
+    - Follow the exact labels and structure above so it’s easy to read and copy.
     """
 
 
-    email_prompt = f"""
+
+     email_prompt = f"""
     You are writing a WEEKLY CREATIVE PACK email from ALX Scales to the client.
 
     Brand: {brand_name}
@@ -333,55 +354,45 @@ async def tally_intake(request: Request):
 
     STRUCTURE (PLAIN TEXT ONLY):
 
-    1) Subject Line:
-    "Your Weekly Creative Pack — {brand_name}"
-
-    2) Greeting:
+    1) Greeting:
     Short, friendly, with their name if available.
 
-    3) Intro:
+    2) Intro:
     Example tone:
     "Delivered! Here’s your creative pack for the week — everything is ready for you to launch today."
 
-    4) What’s Inside This Pack:
+    3) What’s Inside:
+    Briefly list what they’re getting this week:
     - 3 ready-to-post ad variations
     - 1 short-form video script
     - 3 image prompts
     - Targeting suggestions
 
-    5) Ad Summary:
-    Summarize each ad (angle + best platform + short explanation of why it fits their audience).
+    4) Short Highlights:
+    In 3–5 sentences, summarize:
+    - The main angles of the ads
+    - The focus of the video script
+    - The overall vibe for this week’s creative
 
-    6) Video Script Summary:
-    Explain the vibe of the script and the goal of the hook.
-
-    7) Image Prompt Summary:
-    Explain how to use the prompts to build or AI-generate visuals.
-
-    8) Targeting Summary:
-    Summarize:
-    Location
-    Age
-    Interests
-    Why this is a good starting point
-
-    9) How To Use This Pack:
-    (Moderate detail instructions)
+    5) How To Use This Pack:
+    Give moderate-detail, clear, step-by-step instructions:
     1. Open Canva (or your creative tool) and create visuals using the image descriptions.
     2. Use 1080x1350 or 1080x1920 formats for ads.
-    3. Paste the Primary Text, Headline, and CTA into your ad platform.
+    3. Paste the Primary Text, Headline, and CTA from the creative pack into your ad platform.
     4. Record the UGC video script using the scenes provided.
-    5. Launch your ads using the targeting block.
-    6. If you need help, reply to this email.
+    5. Launch your ads using the targeting block as a starting point.
+    6. If they need help, tell them to reply to the email.
 
-    10) Closing:
-    Encouraging, helpful, branded sign-off.
+    6) Close:
+    Encouraging, supportive, brand-aligned closing line.
 
     RULES:
-    - No markdown formatting
-    - No bullet characters
-    - Keep everything readable and human
+    - Do NOT include subject line (that will be added separately).
+    - Do NOT use markdown.
+    - Do NOT repeat the full ads or script. This email is a friendly wrapper around the creative pack.
+    - Keep it concise and human, not robotic.
     """
+
 
     # call your existing AI
     try:
@@ -441,21 +452,32 @@ async def tally_intake(request: Request):
     try:
         from mailer import send_campaign
 
-        subject = f"{brand_name}: Your ALX Scales Campaign Package"
+                subject = f"Your Weekly Creative Pack — {brand_name}"
+
+        # ads is our full creative pack text
+        ads_block = ads if isinstance(ads, str) else "\n\n".join(ads)
+        email_intro = (email_text or "").strip()
+
         body = (
             f"Hi {client_name or 'there'},\n\n"
-            f"Here is your latest campaign package from ALX Scales.\n\n"
-            f"=== Ads ===\n- " + "\n- ".join(ads) +
-            "\n\n=== Email ===\n" + email_text +
-            "\n\n=== Notes ===\n"
+            f"{email_intro}\n\n"
+            "----------------------------\n"
+            "CREATIVE PACK\n"
+            "----------------------------\n\n"
+            f"{ads_block}\n\n"
+            "----------------------------\n"
+            "Brand summary\n"
+            "----------------------------\n"
             f"Website: {website_url or product_url}\n"
             f"Ideal customer: {audience_desc}\n"
-            f"Monthly Ad Budget: {monthly_budget}\n"
-            f"Requested lifestyle images: {lifestyle_flag}\n"
-            f"Requested video ads: {video_flag}\n"
-            "\nIf you want us to launch and manage these ads for you, just reply to this email.\n"
-            "\n—\nALX Scales\nAI Systems That Scale Brands\nalxscales.ai@gmail.com"
+            f"Monthly ad budget: {monthly_budget}\n\n"
+            "If you want us to launch and manage these ads for you, just reply to this email.\n\n"
+            "—\n"
+            "ALX Scales\n"
+            "AI Systems That Scale Brands\n"
+            "alxscales.ai@gmail.com"
         )
+
 
         print("SMTP DEBUG → Attempting to send to:", target_email)
         if target_email:
