@@ -197,13 +197,45 @@ def mini_campaign(payload: MiniCampaign):
 def _find_field(fields, label, default=None):
     """
     Helper to get a field value from Tally by its label.
-    We strip whitespace/newlines so labels like "Main Product / Service\n" still match.
+    We strip whitespace/newlines so labels like "Main Product / Service\\n" still match.
     """
     label = (label or "").strip()
     for f in fields:
         f_label = (f.get("label") or "").strip()
         if f_label == label:
             return f.get("value", default)
+    return default
+
+
+def _get_plan(fields, default: str = "Tier 1") -> str:
+    """
+    Find the selected plan (Tier 1 / Tier 2 / Tier 3) from the Tally fields.
+
+    The field looks like:
+      label: "\\nWhich Plan?\\n"
+      type: MULTIPLE_CHOICE
+      value: [<option_id>]
+      options: [{id, text}, ...]
+
+    This helper maps the option id -> its text (e.g. "Tier 2").
+    """
+    for f in fields:
+        label = (f.get("label") or "").strip()
+        if label == "Which Plan?":
+            val = f.get("value")
+            options = f.get("options") or []
+
+            # MULTIPLE_CHOICE gives a list of option IDs
+            if isinstance(val, list) and val:
+                selected_id = val[0]
+                for opt in options:
+                    if opt.get("id") == selected_id:
+                        return opt.get("text") or default
+
+            # If for some reason it's already text:
+            if isinstance(val, str) and val:
+                return val
+
     return default
 
 
@@ -225,38 +257,47 @@ async def tally_intake(request: Request):
     raw_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     data = payload.get("data", {})
-    fields = data.get("fields", [])
+    fields = data.get("fields", []) or []
 
     print("Tally field labels:", [f.get("label") for f in fields])
 
     # Extract fields by label (with stripping handled in _find_field)
-    brand_name     = _find_field(fields, "Brand Name", "")
-    website_url    = _find_field(fields, "Website URL", "")
-    social_links   = _find_field(fields, "Social Media Links (optional)", "")
-    main_product   = _find_field(fields, "Main Product / Service", "")
-    product_url    = _find_field(fields, "Product/Service URL", "")
+    brand_name = _find_field(fields, "Brand Name", "")
+    website_url = _find_field(fields, "Website URL", "")
+    social_links = _find_field(fields, "Social Media Links (optional)", "")
+    main_product = _find_field(fields, "Main Product / Service", "") or _find_field(
+        fields, "Main Product / Service\n", ""
+    )
+    product_url = _find_field(fields, "Product/Service URL", "")
     ideal_customer = _find_field(fields, "Describe your ideal customer", "")
-    audience_age   = _find_field(fields, "Audience Age Range", "")
-    main_benefit   = _find_field(fields, "Main benefit or value proposition", "")
+    audience_age = _find_field(fields, "Audience Age Range", "")
+    main_benefit = _find_field(fields, "Main benefit or value proposition", "")
     top_competitors = _find_field(fields, "Top Competitors (optional)", "")
-    ad_tone        = _find_field(fields, "Ad tone/style you want", "")
+    ad_tone = _find_field(fields, "Ad tone/style you want", "")
     monthly_budget = _find_field(fields, "Monthly Ad Budget", "")
     lifestyle_flag = _find_field(fields, "Do you want AI-generated lifestyle images?", "")
-    video_flag     = _find_field(fields, "Do you want AI-generated video ads?", "")
+    video_flag = _find_field(fields, "Do you want AI-generated video ads?", "")
     additional_notes = _find_field(fields, "Additional Notes (optional)", "")
-    client_name    = (_find_field(fields, "Your Name", "") or "").strip()
-    client_email   = (_find_field(fields, "Business Email", "") or "").strip()
-    package_email  = (_find_field(fields, "Where should we send your weekly campaign package?", "") or "").strip()
-    phone          = _find_field(fields, "Phone (optional)", "")
+    client_name = (_find_field(fields, "Your Name", "") or "").strip()
+    client_email = (_find_field(fields, "Business Email", "") or "").strip()
+    package_email = (_find_field(fields, "Where should we send your weekly campaign package?", "") or "").strip()
+    phone = _find_field(fields, "Phone (optional)", "")
 
     # uploads will come as lists/objects from Tally
     product_images = _find_field(fields, "Upload Product Images", []) or []
-    extra_images   = _find_field(fields, "Additional Images (optional)", []) or []
+    extra_images = _find_field(fields, "Additional Images (optional)", []) or []
 
     audience_desc = ideal_customer or f"{audience_age} audience"
     angle = main_benefit or "Scale sales with better ads and creative"
 
-       ad_prompt = f"""
+    # Determine plan (Tier 1 / Tier 2 / Tier 3)
+    plan = _get_plan(fields)
+    print("Selected plan:", plan)
+
+    # ---------- PROMPTS (Tier scaffolding) ----------
+
+    # Tier 1 prompts (used for all tiers for now)
+    tier1_ad_prompt = f"""
     You are a senior creative strategist for paid social ads (Meta, TikTok, IG, TikTok Shop).
 
     Your job is to create POST-READY ad creatives for this brand.
@@ -340,9 +381,7 @@ async def tally_intake(request: Request):
     - Follow the exact labels and structure above so it’s easy to read and copy.
     """
 
-
-
-     email_prompt = f"""
+    tier1_email_prompt = f"""
     You are writing a WEEKLY CREATIVE PACK email from ALX Scales to the client.
 
     Brand: {brand_name}
@@ -372,7 +411,7 @@ async def tally_intake(request: Request):
     In 3–5 sentences, summarize:
     - The main angles of the ads
     - The focus of the video script
-    - The overall vibe for this week’s creative
+    - The overall vibe for this week’s creative.
 
     5) How To Use This Pack:
     Give moderate-detail, clear, step-by-step instructions:
@@ -393,15 +432,29 @@ async def tally_intake(request: Request):
     - Keep it concise and human, not robotic.
     """
 
+    # For now, Tier 2 and Tier 3 reuse Tier 1 prompts.
+    # Later you can replace these with dedicated Tier 2 / Tier 3 prompts without changing the logic.
+    tier2_ad_prompt = tier1_ad_prompt
+    tier2_email_prompt = tier1_email_prompt
+    tier3_ad_prompt = tier1_ad_prompt
+    tier3_email_prompt = tier1_email_prompt
+
+    if plan == "Tier 1":
+        ad_prompt = tier1_ad_prompt
+        email_prompt = tier1_email_prompt
+    elif plan == "Tier 2":
+        ad_prompt = tier2_ad_prompt
+        email_prompt = tier2_email_prompt
+    else:  # Tier 3 or anything else
+        ad_prompt = tier3_ad_prompt
+        email_prompt = tier3_email_prompt
 
     # call your existing AI
     try:
         ads = generate_ad_copy(ad_prompt)
     except Exception as e:
         print("[OPENAI_ERROR][ads] OPENAI_ERROR(generate_ad_copy):", repr(e))
-        ads = [
-            "Error generating ads. Please check backend logs.",
-        ]
+        ads = "Error generating ads. Please check backend logs."
 
     try:
         email_text = generate_email(email_prompt)
@@ -411,10 +464,10 @@ async def tally_intake(request: Request):
 
     # persist under /app/out/clients/<brand>/
     safe_brand = "".join(
-        c for c in brand_name.lower().replace(" ", "-")
+        c for c in (brand_name or "").lower().replace(" ", "-")
         if c.isalnum() or c in ("-", "_")
     )
-    client_dir = pathlib.Path("/app/out/clients") / safe_brand
+    client_dir = pathlib.Path("/app/out/clients") / (safe_brand or "unknown-brand")
     client_dir.mkdir(parents=True, exist_ok=True)
 
     out_file = client_dir / f"campaign-{ts}.json"
@@ -441,18 +494,24 @@ async def tally_intake(request: Request):
         "extra_images": extra_images,
         "generated_ads": ads,
         "generated_email": email_text,
+        "plan": plan,
         "created_at": ts,
     }
     out_file.write_text(json.dumps(out_payload, indent=2), encoding="utf-8")
 
     target_email = package_email or client_email
-    result = {"saved_to": str(out_file), "brand": brand_name, "sent_to": target_email}
+    result = {
+        "saved_to": str(out_file),
+        "brand": brand_name,
+        "sent_to": target_email,
+        "plan": plan,
+    }
 
     # email the package
     try:
         from mailer import send_campaign
 
-                subject = f"Your Weekly Creative Pack — {brand_name}"
+        subject = f"Your Weekly Creative Pack — {brand_name}"
 
         # ads is our full creative pack text
         ads_block = ads if isinstance(ads, str) else "\n\n".join(ads)
@@ -470,14 +529,14 @@ async def tally_intake(request: Request):
             "----------------------------\n"
             f"Website: {website_url or product_url}\n"
             f"Ideal customer: {audience_desc}\n"
-            f"Monthly ad budget: {monthly_budget}\n\n"
+            f"Monthly ad budget: {monthly_budget}\n"
+            f"Plan: {plan}\n\n"
             "If you want us to launch and manage these ads for you, just reply to this email.\n\n"
             "—\n"
             "ALX Scales\n"
             "AI Systems That Scale Brands\n"
             "alxscales.ai@gmail.com"
         )
-
 
         print("SMTP DEBUG → Attempting to send to:", target_email)
         if target_email:
