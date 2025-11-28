@@ -62,7 +62,6 @@ def get_leads():
 
 @app.post("/campaigns/brief")
 def create_brief(req: CampaignRequest, background_tasks: BackgroundTasks):
-    # Kick off async generation via Celery
     payload = req.dict()
     dispatch_task("generate_campaign", payload)
     return {"status": "queued", "payload": payload}
@@ -84,7 +83,7 @@ def make_ad_copy(req: AdCopyRequest):
     out_dir = pathlib.Path("/app/out")
     out_dir.mkdir(exist_ok=True)
     fp = out_dir / f"ad-{ts}.txt"
-    fp.write_text(ad_text, encoding="utf-8")
+    fp.write_text(str(ad_text), encoding="utf-8")
     return {"ad": ad_text, "saved_to": str(fp)}
 
 
@@ -105,7 +104,7 @@ def make_email_copy(req: EmailCopyRequest):
     out_dir = pathlib.Path("/app/out")
     out_dir.mkdir(exist_ok=True)
     fp = out_dir / f"email-{ts}.txt"
-    fp.write_text(email_text, encoding="utf-8")
+    fp.write_text(str(email_text), encoding="utf-8")
     return {"email": email_text, "saved_to": str(fp)}
 
 
@@ -164,14 +163,13 @@ def mini_campaign(payload: MiniCampaign):
 
     result = {"ads": ads, "email": email_text, "saved_to": str(out_file)}
 
-    # Try emailing if provided — never crash the request
     try:
         if payload.email:
-            from mailer import send_campaign  # local import to avoid hard fail if file missing
+            from mailer import send_campaign
             subj = f"{payload.brand}: Your New AI Campaign (Ads + Email)"
             body = (
-                "Ads:\n- " + "\n- ".join(ads) +
-                "\n\nEmail:\n" + email_text +
+                "Ads:\n" + str(ads) +
+                "\n\nEmail:\n" + str(email_text) +
                 "\n\n—\nALX Scales\nAI Systems That Scale E-Commerce Brands\nalxscales.ai@gmail.com"
             )
             send_campaign(payload.email, subj, body)
@@ -179,7 +177,6 @@ def mini_campaign(payload: MiniCampaign):
     except Exception as e:
         result["email_error"] = f"{type(e).__name__}: {e}"
 
-    # Optional: append a CSV log line (history.csv)
     try:
         log_path = out_dir / "history.csv"
         is_new = not log_path.exists()
@@ -195,10 +192,6 @@ def mini_campaign(payload: MiniCampaign):
 
 
 def _find_field(fields, label, default=None):
-    """
-    Helper to get a field value from Tally by its label.
-    We strip whitespace/newlines so labels like "Main Product / Service\\n" still match.
-    """
     label = (label or "").strip()
     for f in fields:
         f_label = (f.get("label") or "").strip()
@@ -207,49 +200,41 @@ def _find_field(fields, label, default=None):
     return default
 
 
-def _get_plan(fields, default: str = "Tier 1") -> str:
-    """
-    Find the selected plan (Tier 1 / Tier 2 / Tier 3) from the Tally fields.
-
-    The field looks like:
-      label: "\\nWhich Plan?\\n"
-      type: MULTIPLE_CHOICE
-      value: [<option_id>]
-      options: [{id, text}, ...]
-
-    This helper maps the option id -> its text (e.g. "Tier 2").
-    """
+def _get_plan(fields, default="Tier 1"):
     for f in fields:
         label = (f.get("label") or "").strip()
         if label == "Which Plan?":
             val = f.get("value")
             options = f.get("options") or []
-
-            # MULTIPLE_CHOICE gives a list of option IDs
             if isinstance(val, list) and val:
                 selected_id = val[0]
                 for opt in options:
-                    if opt.get("id") == selected_id:
-                        return opt.get("text") or default
-
-            # If for some reason it's already text:
+                    text = opt.get("text")
+                    if opt.get("id") == selected_id and text:
+                        return text
             if isinstance(val, str) and val:
                 return val
-
     return default
+
+
+def _safe_text(value, fallback=""):
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return fallback
+    try:
+        return json.dumps(value, indent=2)
+    except Exception:
+        return fallback
 
 
 @app.post("/webhooks/tally/intake")
 async def tally_intake(request: Request):
-    """
-    Webhook endpoint for Tally 'ALX Scales – New Client Intake' form.
-    """
     try:
         payload = await request.json()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
 
-    # Save raw payload for debugging
     debug_dir = pathlib.Path("/app/out/tally_raw")
     debug_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
@@ -261,11 +246,9 @@ async def tally_intake(request: Request):
 
     print("Tally field labels:", [f.get("label") for f in fields])
 
-    # Determine plan/tier
     plan = _get_plan(fields)
     print("Selected plan:", plan)
 
-    # Extract fields by label (with stripping handled in _find_field)
     brand_name      = _find_field(fields, "Brand Name", "")
     website_url     = _find_field(fields, "Website URL", "")
     social_links    = _find_field(fields, "Social Media Links (optional)", "")
@@ -285,14 +268,12 @@ async def tally_intake(request: Request):
     package_email   = (_find_field(fields, "Where should we send your weekly campaign package?", "") or "").strip()
     phone           = _find_field(fields, "Phone (optional)", "")
 
-    # uploads will come as lists/objects from Tally
     product_images = _find_field(fields, "Upload Product Images", []) or []
     extra_images   = _find_field(fields, "Additional Images (optional)", []) or []
 
     audience_desc = ideal_customer or f"{audience_age} audience"
     angle = main_benefit or "Scale sales with better ads and creative"
 
-    # ---------- COMMON CONTEXT FOR PROMPTS ----------
     base_context = f"""
 Brand: {brand_name}
 Product/Service: {main_product}
@@ -302,14 +283,15 @@ Tone/Style: Gen-Z professional, friendly, slightly connective
 Notes: {additional_notes}
 """
 
-    # ---------- TIER 1 / 2 / 3 PROMPTS (for now all use the same structure; Tier 2/3 can be upgraded later) ----------
-    # Ads prompt – focused only on ready-to-post ads
-    ads_prompt = base_context + """
-Write 3 ready-to-post paid social ads for this brand (Meta / IG / TikTok).
+    # 3 ads (separate calls, forced text)
+    ads_blocks = []
+    for i in range(1, 4):
+        ad_prompt = base_context + f"""
+Write ONE ready-to-post paid social ad for this brand (Meta / IG / TikTok).
 
-For each ad, follow this exact plain-text format:
+Use this exact plain-text format:
 
-Ad 1 — [short nickname]:
+Ad {i} — [short nickname]:
 Platform: [Meta / IG / TikTok]
 Placement: [Feed / Story / Reels]
 Primary Text: [2–4 sentence ad copy written to convert, not instructions]
@@ -318,31 +300,21 @@ CTA: [short call-to-action phrase]
 Image Description: [detailed description for a lifestyle product image a designer or AI could make]
 Aspect Ratio: [1080x1350 or 1080x1920]
 
-Ad 2 — [short nickname]:
-Platform:
-Placement:
-Primary Text:
-Headline:
-CTA:
-Image Description:
-Aspect Ratio:
-
-Ad 3 — [short nickname]:
-Platform:
-Placement:
-Primary Text:
-Headline:
-CTA:
-Image Description:
-Aspect Ratio:
-
 RULES:
 - No markdown (#, **, -, *).
 - No bullet points.
-- No explanations, only the ads in the exact format above.
+- No explanations, only the ad in the exact format above.
 """
+        try:
+            ad_i = generate_ad_copy(ad_prompt)
+        except Exception as e:
+            print(f"[OPENAI_ERROR][ad_{i}] {repr(e)}")
+            ad_i = f"Error generating Ad {i}. Please check backend logs."
+        ads_blocks.append(_safe_text(ad_i, f"Error generating Ad {i}"))
 
-    # Video script prompt – only the UGC script
+    ads_text = "\n\n".join(ads_blocks)
+
+    # video script
     script_prompt = base_context + """
 Write ONE short-form UGC video script (15–25 seconds) for this brand.
 
@@ -361,8 +333,14 @@ RULES:
 - No bullet symbols.
 - Write the actual lines as if a creator is reading them on camera.
 """
+    try:
+        script_raw = generate_ad_copy(script_prompt)
+    except Exception as e:
+        print("[OPENAI_ERROR][script] OPENAI_ERROR(script_text):", repr(e))
+        script_raw = "Error generating video script. Please check backend logs."
+    script_text = _safe_text(script_raw, "Error generating video script. Please check backend logs.")
 
-    # Image prompts prompt – only the prompts
+    # image prompts
     image_prompts_prompt = base_context + """
 Write exactly 3 short AI image prompts (1–2 sentences each) for lifestyle product photos.
 
@@ -378,8 +356,14 @@ RULES:
 - No markdown.
 - No bullet symbols.
 """
+    try:
+        image_raw = generate_ad_copy(image_prompts_prompt)
+    except Exception as e:
+        print("[OPENAI_ERROR][images] OPENAI_ERROR(image_prompts_text):", repr(e))
+        image_raw = "Error generating image prompts. Please check backend logs."
+    image_prompts_text = _safe_text(image_raw, "Error generating image prompts. Please check backend logs.")
 
-    # Targeting prompt – only the targeting pack
+    # targeting
     targeting_prompt = base_context + """
 Propose a simple paid social targeting pack for Meta Ads.
 
@@ -396,180 +380,64 @@ RULES:
 - No markdown.
 - No bullet symbols.
 """
-
-    # Email intro / wrapper prompt (per plan, but for now identical)
-    if plan == "Tier 1":
-        email_prompt = f"""
-You are writing a WEEKLY CREATIVE PACK email from ALX Scales to the client.
-
-Brand: {brand_name}
-Product: {main_product}
-Website: {website_url or product_url}
-Ideal Customer: {audience_desc}
-Tone: Gen-Z professional, friendly, helpful, slightly connective
-Client Name: {client_name or 'there'}
-
-STRUCTURE (PLAIN TEXT ONLY):
-
-1) Greeting:
-Short, friendly, with their name if available.
-
-2) Intro:
-Example tone:
-"Delivered! Here’s your creative pack for the week — everything is ready for you to launch today."
-
-3) What’s Inside:
-Briefly list what they’re getting this week:
-- 3 ready-to-post ad variations
-- 1 short-form video script
-- 3 image prompts
-- Targeting suggestions
-
-4) Short Highlights:
-In 3–5 sentences, summarize:
-- The main angles of the ads
-- The focus of the video script
-- The overall vibe for this week’s creative
-
-5) How To Use This Pack:
-Give moderate-detail, clear, step-by-step instructions:
-1. Open Canva (or your creative tool) and create visuals using the image descriptions.
-2. Use 1080x1350 or 1080x1920 formats for ads.
-3. Paste the Primary Text, Headline, and CTA from the creative pack into your ad platform.
-4. Record the UGC video script using the scenes provided.
-5. Launch your ads using the targeting block as a starting point.
-6. If they need help, tell them to reply to the email.
-
-6) Close:
-Encouraging, supportive, brand-aligned closing line.
-
-RULES:
-- Do NOT include subject line (that will be added separately).
-- Do NOT use markdown.
-- Do NOT repeat the full ads or script. This email is a friendly wrapper around the creative pack.
-- Keep it concise and human, not robotic.
-"""
-    elif plan == "Tier 2":
-        # For now: same email wrapper as Tier 1. Later we can upgrade to Growth Pack language.
-        email_prompt = f"""
-You are writing a WEEKLY CREATIVE PACK email from ALX Scales to the client.
-
-Brand: {brand_name}
-Product: {main_product}
-Website: {website_url or product_url}
-Ideal Customer: {audience_desc}
-Tone: Gen-Z professional, friendly, helpful, slightly connective
-Client Name: {client_name or 'there'}
-
-STRUCTURE (PLAIN TEXT ONLY):
-
-1) Greeting:
-Short, friendly, with their name if available.
-
-2) Intro:
-Example tone:
-"Your Growth Pack is here! This week’s creative is designed to help you scale with stronger visuals and fresh angles."
-
-3) What’s Inside:
-Briefly list:
-- 3 ready-to-post ad variations
-- 1 short-form video script
-- 3 image prompts
-- Targeting suggestions
-
-4) Short Highlights:
-In 3–5 sentences, summarize:
-- The main angles of the ads
-- The focus of the video script
-- The overall vibe for this week’s creative
-
-5) How To Use This Pack:
-Give clear, step-by-step instructions (similar to Tier 1 but can mention testing and iteration).
-
-6) Close:
-Encouraging, supportive, brand-aligned closing line.
-
-RULES:
-- No markdown.
-- No repetition of the full ads or script.
-- Keep it concise and human.
-"""
-    else:
-        # Tier 3 or unknown → fallback wrapper for now
-        email_prompt = f"""
-You are writing a WEEKLY CREATIVE PACK email from ALX Scales to the client.
-
-Brand: {brand_name}
-Product: {main_product}
-Website: {website_url or product_url}
-Ideal Customer: {audience_desc}
-Tone: Gen-Z professional, friendly, helpful, slightly connective
-Client Name: {client_name or 'there'}
-
-STRUCTURE (PLAIN TEXT ONLY):
-
-1) Greeting:
-Short, friendly.
-
-2) Intro:
-Mention that their creative pack for this week is ready.
-
-3) What’s Inside:
-Summarize:
-- 3 ad variations
-- 1 video script
-- 3 image prompts
-- Targeting suggestions
-
-4) Short Highlights:
-3–5 sentences summarizing the angles and vibe.
-
-5) How To Use This Pack:
-Explain how to plug the assets into their ad platforms.
-
-6) Close:
-Friendly, encouraging, with an invitation to reach out.
-
-RULES:
-- No markdown.
-- No repetition of the full ads or script.
-- Keep it concise and human.
-"""
-
-    # ---------- LLM CALLS ----------
     try:
-        ads_text = generate_ad_copy(ads_prompt)
-    except Exception as e:
-        print("[OPENAI_ERROR][ads] OPENAI_ERROR(ads_text):", repr(e))
-        ads_text = "Error generating ads. Please check backend logs."
-
-    try:
-        script_text = generate_ad_copy(script_prompt)
-    except Exception as e:
-        print("[OPENAI_ERROR][script] OPENAI_ERROR(script_text):", repr(e))
-        script_text = "Error generating video script. Please check backend logs."
-
-    try:
-        image_prompts_text = generate_ad_copy(image_prompts_prompt)
-    except Exception as e:
-        print("[OPENAI_ERROR][images] OPENAI_ERROR(image_prompts_text):", repr(e))
-        image_prompts_text = "Error generating image prompts. Please check backend logs."
-
-    try:
-        targeting_text = generate_ad_copy(targeting_prompt)
+        targeting_raw = generate_ad_copy(targeting_prompt)
     except Exception as e:
         print("[OPENAI_ERROR][targeting] OPENAI_ERROR(targeting_text):", repr(e))
-        targeting_text = "Error generating targeting recommendations. Please check backend logs."
+        targeting_raw = "Error generating targeting recommendations. Please check backend logs."
+    targeting_text = _safe_text(targeting_raw, "Error generating targeting recommendations. Please check backend logs.")
+
+    # email wrapper (no subject / no hi / no closing)
+    email_prompt = f"""
+You are writing a WEEKLY CREATIVE PACK email from ALX Scales to the client.
+
+Brand: {brand_name}
+Product: {main_product}
+Website: {website_url or product_url}
+Ideal Customer: {audience_desc}
+Tone: Gen-Z professional, friendly, helpful, slightly connective
+
+STRUCTURE (PLAIN TEXT ONLY):
+
+Write:
+- 2–3 intro sentences (like "Delivered! Here’s your creative pack for the week — everything is ready for you to launch today.")
+- A short paragraph describing what’s inside (3 ad variations, 1 video script, 3 image prompts, targeting suggestions).
+- 3–5 sentences summarizing the angles and vibe.
+- A step-by-step "How to use this pack" section.
+
+RULES:
+- Do NOT include a subject line.
+- Do NOT include any greeting (no 'Hi', 'Hey', or name).
+- Do NOT include any closing or signature.
+- Do NOT start with 'Subject:' or 'Hi' or 'Hey'.
+- Only return the body content as plain text paragraphs.
+"""
 
     try:
-        email_text = generate_email(email_prompt)
+        email_raw = generate_email(email_prompt)
     except Exception as e:
         print("[OPENAI_ERROR][email] OPENAI_ERROR(generate_email):", repr(e))
-        email_text = "Here’s your creative pack for this week."
+        email_raw = "Here’s your creative pack for this week."
 
-    # ---------- COMPOSE CREATIVE PACK BLOCK ----------
+    email_raw = _safe_text(email_raw, "Here’s your creative pack for this week.")
+
+    cleaned_lines = []
+    for line in email_raw.splitlines():
+        stripped = line.strip()
+        lower = stripped.lower()
+        if not stripped:
+            if cleaned_lines:
+                cleaned_lines.append(line)
+            continue
+        if lower.startswith("subject:"):
+            continue
+        if lower.startswith("hi ") or lower.startswith("hey "):
+            continue
+        cleaned_lines.append(line)
+    email_intro = "\n".join(cleaned_lines).strip()
+
     creative_pack = (
-        ads_text.strip()
+        _safe_text(ads_text, "").strip()
         + "\n\nVideo Script:\n"
         + script_text.strip()
         + "\n\nImage Prompts:\n"
@@ -578,7 +446,6 @@ RULES:
         + targeting_text.strip()
     )
 
-    # persist under /app/out/clients/<brand>/
     safe_brand = "".join(
         c for c in brand_name.lower().replace(" ", "-")
         if c.isalnum() or c in ("-", "_")
@@ -626,14 +493,10 @@ RULES:
         "plan": plan,
     }
 
-    # ---------- EMAIL SEND ----------
     try:
         from mailer import send_campaign
 
         subject = f"Your Weekly Creative Pack — {brand_name}"
-
-        ads_block = creative_pack  # this is what we show under CREATIVE PACK
-        email_intro = (email_text or "").strip()
 
         body = (
             f"Hi {client_name or 'there'},\n\n"
@@ -641,7 +504,7 @@ RULES:
             "----------------------------\n"
             "CREATIVE PACK\n"
             "----------------------------\n\n"
-            f"{ads_block}\n\n"
+            f"{creative_pack}\n\n"
             "----------------------------\n"
             "Brand summary\n"
             "----------------------------\n"
@@ -649,8 +512,7 @@ RULES:
             f"Ideal customer: {audience_desc}\n"
             f"Monthly ad budget: {monthly_budget}\n"
             f"Plan: {plan}\n\n"
-            "If you ever want us to launch and manage these ads for you as a done-for-you service, "
-            "just reply to this email and we’ll share upgrade options.\n\n"
+            "If you’d like help tweaking or expanding this creative pack, just reply to this email.\n\n"
             "—\n"
             "ALX Scales\n"
             "AI Systems That Scale Brands\n"
