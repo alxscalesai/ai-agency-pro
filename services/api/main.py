@@ -354,21 +354,24 @@ IMPORTANT:
     script_prompt = base_context + """
 Write ONE short-form UGC video script (15–25 seconds) for this brand.
 
-Use this exact format:
+Return it in EXACTLY this format (no extra lines before or after):
 
 Hook: [actual spoken line in the first 2–3 seconds]
-Scene 1: [what’s on screen] / [what is said]
-Scene 2: [what’s on screen] / [what is said]
-Scene 3: [what’s on screen] / [what is said]
-On-Screen Text: [short text overlays]
+Scene 1 (0–5s): [On screen:] ... [Line:] ...
+Scene 2 (5–12s): [On screen:] ... [Line:] ...
+Scene 3 (12–20s): [On screen:] ... [Line:] ...
+On-Screen Text: [short text overlays, comma-separated]
 Voiceover Script: [full VO lines if different from on-camera]
 CTA Line: [final spoken line that pushes them to click or buy]
 
 RULES:
+- Do NOT write a list of separate one-liner slogans.
+- This must be one coherent script with scenes that flow.
 - No markdown.
 - No bullet symbols.
-- Write the actual lines as if a creator is reading them on camera.
+- Do NOT add any extra headings, commentary, or explanation.
 """
+
     try:
         script_raw = generate_ad_copy(script_prompt)
     except Exception as e:
@@ -380,7 +383,7 @@ RULES:
     image_prompts_prompt = base_context + """
 Write exactly 3 short AI image prompts (1–2 sentences each) for lifestyle product photos.
 
-Format them exactly as:
+Return them in EXACTLY 3 lines, like:
 
 Image Prompt 1: ...
 Image Prompt 2: ...
@@ -389,11 +392,13 @@ Image Prompt 3: ...
 Each prompt should describe a realistic lifestyle scene that would make this product look desirable to the ideal customer.
 
 RULES:
-- Return exactly 3 lines (one per prompt).
-- Do NOT write more than 3 prompts.
+- Return exactly 3 lines, no more and no less.
+- Each line MUST start with "Image Prompt 1:", "Image Prompt 2:", or "Image Prompt 3:".
 - No markdown.
 - No bullet symbols.
+- Do NOT add any other text before or after the 3 lines.
 """
+
     try:
         image_raw = generate_ad_copy(image_prompts_prompt)
     except Exception as e:
@@ -476,14 +481,15 @@ RULES:
 
     # --- 8) Assemble creative pack text ---
     creative_pack = (
-        str(ads_text).strip()
-        + "\n\nVideo Script:\n"
-        + str(script_text).strip()
-        + "\n\nImage Prompts:\n"
-        + str(image_prompts_text).strip()
-        + "\n\n"
-        + str(targeting_text).strip()
-    )
+    str(ads_text).strip()
+    + "\n\nVideo Script:\n"
+    + str(script_text).strip()
+    + "\n\nImage Prompts:\n"
+    + str(image_prompts_text).strip()
+    + "\n\nTargeting Recommendations:\n"
+    + str(targeting_text).strip()
+)
+
 
     # --- 9) Persist JSON campaign file ---
     safe_brand = "".join(
