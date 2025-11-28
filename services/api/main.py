@@ -10,6 +10,10 @@ app = FastAPI(title="AI Agency API", version="1.0.0")
 init_db()
 
 
+# -----------------------------
+# Core models & simple endpoints
+# -----------------------------
+
 class Lead(BaseModel):
     name: str
     email: str
@@ -191,6 +195,10 @@ def mini_campaign(payload: MiniCampaign):
     return result
 
 
+# -----------------------------
+# Helper fns for Tally webhook
+# -----------------------------
+
 def _find_field(fields, label, default=None):
     label = (label or "").strip()
     for f in fields:
@@ -218,18 +226,43 @@ def _get_plan(fields, default="Tier 1"):
 
 
 def _safe_text(value, fallback=""):
-    if isinstance(value, str):
-        return value
-    if value is None:
-        return fallback
-    try:
-        return json.dumps(value, indent=2)
-    except Exception:
-        return fallback
+    """
+    Normalize the model output into clean text.
+    - If it's a string → return as-is (with unicode fixed)
+    - If it's a list of strings → join them into readable multiline text
+    - Otherwise → fallback to JSON or fallback string
+    """
 
+    # If already plain text:
+    if isinstance(value, str):
+        text = value
+    # List of lines → join
+    elif isinstance(value, list) and all(isinstance(x, str) for x in value):
+        text = "\n".join(value)
+    # Anything else → JSON stringify
+    else:
+        try:
+            text = json.dumps(value, indent=2)
+        except Exception:
+            text = fallback
+
+    # Fix escaped unicode (\u2014) AND raw unicode
+    text = text.replace("\\u2014", "—")
+    text = text.replace("\u2014", "—")
+
+    # Clean accidental list markers from JSON-y lists
+    text = text.replace("[", "").replace("]", "")
+
+    return text.strip()
+
+
+# -----------------------------
+# Tally → Weekly Creative Pack
+# -----------------------------
 
 @app.post("/webhooks/tally/intake")
 async def tally_intake(request: Request):
+    # --- 1) Parse + log payload ---
     try:
         payload = await request.json()
     except Exception as e:
@@ -249,6 +282,7 @@ async def tally_intake(request: Request):
     plan = _get_plan(fields)
     print("Selected plan:", plan)
 
+    # --- 2) Extract fields from Tally ---
     brand_name      = _find_field(fields, "Brand Name", "")
     website_url     = _find_field(fields, "Website URL", "")
     social_links    = _find_field(fields, "Social Media Links (optional)", "")
@@ -283,7 +317,7 @@ Tone/Style: Gen-Z professional, friendly, slightly connective
 Notes: {additional_notes}
 """
 
-    # 3 ads (separate calls, forced text)
+    # --- 3) Generate 3 ready-to-post ads (separate calls) ---
     ads_blocks = []
     for i in range(1, 4):
         ad_prompt = base_context + f"""
@@ -300,7 +334,9 @@ CTA: [short call-to-action phrase]
 Image Description: [detailed description for a lifestyle product image a designer or AI could make]
 Aspect Ratio: [1080x1350 or 1080x1920]
 
-RULES:
+IMPORTANT:
+- The first line MUST start with exactly "Ad {i} —".
+- Do NOT change the number {i} to anything else.
 - No markdown (#, **, -, *).
 - No bullet points.
 - No explanations, only the ad in the exact format above.
@@ -314,7 +350,7 @@ RULES:
 
     ads_text = "\n\n".join(ads_blocks)
 
-    # video script
+    # --- 4) Generate UGC video script ---
     script_prompt = base_context + """
 Write ONE short-form UGC video script (15–25 seconds) for this brand.
 
@@ -340,7 +376,7 @@ RULES:
         script_raw = "Error generating video script. Please check backend logs."
     script_text = _safe_text(script_raw, "Error generating video script. Please check backend logs.")
 
-    # image prompts
+    # --- 5) Generate 3 image prompts ---
     image_prompts_prompt = base_context + """
 Write exactly 3 short AI image prompts (1–2 sentences each) for lifestyle product photos.
 
@@ -353,6 +389,8 @@ Image Prompt 3: ...
 Each prompt should describe a realistic lifestyle scene that would make this product look desirable to the ideal customer.
 
 RULES:
+- Return exactly 3 lines (one per prompt).
+- Do NOT write more than 3 prompts.
 - No markdown.
 - No bullet symbols.
 """
@@ -363,7 +401,7 @@ RULES:
         image_raw = "Error generating image prompts. Please check backend logs."
     image_prompts_text = _safe_text(image_raw, "Error generating image prompts. Please check backend logs.")
 
-    # targeting
+    # --- 6) Generate targeting block ---
     targeting_prompt = base_context + """
 Propose a simple paid social targeting pack for Meta Ads.
 
@@ -387,7 +425,7 @@ RULES:
         targeting_raw = "Error generating targeting recommendations. Please check backend logs."
     targeting_text = _safe_text(targeting_raw, "Error generating targeting recommendations. Please check backend logs.")
 
-    # email wrapper (no subject / no hi / no closing)
+    # --- 7) Email wrapper (no subject, no greeting, no closing) ---
     email_prompt = f"""
 You are writing a WEEKLY CREATIVE PACK email from ALX Scales to the client.
 
@@ -436,18 +474,20 @@ RULES:
         cleaned_lines.append(line)
     email_intro = "\n".join(cleaned_lines).strip()
 
+    # --- 8) Assemble creative pack text ---
     creative_pack = (
-        _safe_text(ads_text, "").strip()
+        str(ads_text).strip()
         + "\n\nVideo Script:\n"
-        + script_text.strip()
+        + str(script_text).strip()
         + "\n\nImage Prompts:\n"
-        + image_prompts_text.strip()
+        + str(image_prompts_text).strip()
         + "\n\n"
-        + targeting_text.strip()
+        + str(targeting_text).strip()
     )
 
+    # --- 9) Persist JSON campaign file ---
     safe_brand = "".join(
-        c for c in brand_name.lower().replace(" ", "-")
+        c for c in (brand_name or "brand").lower().replace(" ", "-")
         if c.isalnum() or c in ("-", "_")
     )
     client_dir = pathlib.Path("/app/out/clients") / safe_brand
@@ -493,6 +533,7 @@ RULES:
         "plan": plan,
     }
 
+    # --- 10) Send email ---
     try:
         from mailer import send_campaign
 
